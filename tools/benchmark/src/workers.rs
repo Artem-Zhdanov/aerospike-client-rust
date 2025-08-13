@@ -13,13 +13,14 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+use rand::prelude::*;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use std::boxed::Box;
 use std::str::FromStr;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-
-use rand::prelude::*;
 
 use aerospike::Error as asError;
 use aerospike::Result as asResult;
@@ -28,6 +29,8 @@ use aerospike::{Client, ErrorKind, Key, ReadPolicy, ResultCode, WritePolicy};
 use generator::KeyRange;
 use percent::Percent;
 use stats::Histogram;
+
+const PAYLOAD_SIZE: usize = 1024 * 500;
 
 lazy_static! {
     // How frequently workers send stats to the collector
@@ -136,9 +139,11 @@ impl InsertTask {
 
 impl Task for InsertTask {
     fn execute(&self, key: &Key) -> Status {
-        let bin = as_bin!("int", random::<i64>());
-        trace!("Inserting {}", key);
-        self.status(self.client.put(&self.policy, key, &[&bin]))
+        let mut buff = vec![0u8; PAYLOAD_SIZE];
+        let mut rng = SmallRng::from_entropy();
+        rng.fill_bytes(&mut buff);
+        debug!("Inserting {} payload len {}", key, buff.len());
+        self.status(self.client.put(&self.policy, key, &[as_bin!("buff", buff)]))
     }
 }
 
